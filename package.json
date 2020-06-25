@@ -1,0 +1,22 @@
+{
+  "name": "time-trial-viewer-server",
+  "version": "1.0.0",
+  "description": "Server for a Timetrial viewer app (time-trial-viewer-frontend)",
+  "private": true,
+  "scripts": {
+    "start": "node ./bin/www"
+  },
+  "author": "Mike Annett <mike.annett2@gmail.com>",
+  "license": "ISC",
+  "dependencies": {
+    "compression": "^1.7.4",
+    "cookie-parser": "~1.4.4",
+    "debug": "~2.6.9",
+    "dotenv": "^8.2.0",
+    "express": "~4.16.1",
+    "http-errors": "~1.6.3",
+    "morgan": "~1.9.1",
+    "request": "^2.88.2",
+    "request-promise": "^4.2.5"
+  }
+}

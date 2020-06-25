@@ -1,0 +1,6 @@
+{ "comment" : "Strava flyby contains athlete Forename only, use this structure if you want to give some or all a fuller name.",
+    "usage" : "Rename this template to athletes.json before starting the server",
+    "athletes":{
+    "1630456" : "Mike Annett"
+  }
+}
