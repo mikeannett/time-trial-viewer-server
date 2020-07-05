@@ -4,10 +4,14 @@ const cookieParser = require('cookie-parser');
 const compression = require('compression');
 const logger = require('morgan');
 const fs = require('fs');
+const helmet = require('helmet');
 
 const path = require( 'path' )
 
 const app = express();
+// enable security headers
+app.use(helmet());
+// enable compression of requests
 app.use(compression({ filter: shouldCompress }))
 const request = require('request-promise');
 
@@ -103,6 +107,16 @@ app.get('/test', function(req, res, next) {
 })
 
 app.get('/events', function(req, res, next) {
+  // this endpoint is an indicator for site use.
+  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const currentdate = new Date();
+  const d= currentdate.getDate() + "/"
+  + (currentdate.getMonth()+1)  + "/" 
+  + currentdate.getFullYear() + " @ "  
+  + currentdate.getHours() + ":"  
+  + currentdate.getMinutes() + ":" 
+  + currentdate.getSeconds();//Date.now().toISOString(); 
+  console.log( `${d} - Request from: ${ip}`)
   res.sendFile('events.json', { root: __dirname });
 })
 
