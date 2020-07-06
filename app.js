@@ -5,7 +5,7 @@ const compression = require('compression');
 const logger = require('morgan');
 const fs = require('fs');
 const helmet = require('helmet');
-
+const request = require('request-promise');
 const path = require( 'path' )
 
 const app = express();
@@ -13,14 +13,17 @@ const app = express();
 app.use(helmet());
 // enable compression of requests
 app.use(compression({ filter: shouldCompress }))
-const request = require('request-promise');
+
+// Use the Morgan logger
+// create a write stream (in append mode)
+var accessLogStream = fs.createWriteStream(path.join(__dirname, 'morgan.log'), { flags: 'a' });
+app.use(logger('dev', { stream: accessLogStream }));
 
 // Might connect to Strava in the future
 // const initialiseStravaAccessToken = require('./stravaTok.js');
 //var stravaAccessTokenJson;
 //initialiseStravaAccessToken();
 
-app.use(logger('dev'));
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
@@ -29,7 +32,6 @@ app.use(cookieParser());
 app.use(express.static('static'))
 
 const cacheDir=process.env.CACHE_DIR;
-
 
 app.get('/activity/:id', function(req, res, next) {
   const cachedFileName = path.format( {dir: cacheDir, base: `${req.params.id}.json`});
