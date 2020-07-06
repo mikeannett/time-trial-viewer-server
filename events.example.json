@@ -1,5 +1,5 @@
 {  "comments" : "Defines time trial events with lists of activity ids. The first activity is used to determin the start and end. -ve activity ids are used for situations where the athlete started/finished at a different point to everyone else",
-    "usage" : "Rename this template to eventss.json before starting the server",
+    "usage" : "Rename this template to events.json before starting the server",
     "events" : [
     {"name":"Dark Peak Burbage", "activities":[3610014214], "comment" : "Comments are ignored, so use them if they help"},
     {"name":"Summer Series Moscar", "activities":[3521974556]}
