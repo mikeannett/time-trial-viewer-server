@@ -5,7 +5,7 @@ const compression = require('compression');
 const logger = require('morgan');
 const fs = require('fs');
 const helmet = require('helmet');
-const request = require('request-promise');
+const fetch = require('node-fetch');
 const path = require( 'path' )
 
 const app = express();
@@ -40,13 +40,15 @@ app.get('/activity/:id', function(req, res, next) {
     const url1 = 'https://nene.strava.com/flyby/stream_compare/'+req.params.id+'/'+req.params.id;
     var stream;
 
-    request(url1).then( res1 => {
-      stream=JSON.parse(res1);
+    fetch(url1)
+    .then(checkResponseStatus)
+    .then(res1 => res1.json())
+    .then( res1 => {
+      stream=res1;
 
       const url2='https://nene.strava.com/flyby/matches/'+req.params.id;
       const options = {
         method: 'GET',
-        uri: url2,
         headers: {
           'Origin': 'https://labs.strava.com',
           'User-Agent': 'curl/7.54.0',
@@ -54,8 +56,10 @@ app.get('/activity/:id', function(req, res, next) {
         }
       };
       // console.log(url2);
-      request(options).then( res2 => {
-        const res2Json=JSON.parse(res2);
+      fetch(url2, options)
+      .then(checkResponseStatus)
+      .then(res2 => res2.json())
+      .then( res2Json => {
         let athleteId;
         // this API returns {} for athletes with certain privacy settings
         try {
@@ -81,32 +85,13 @@ app.get('/activity/:id', function(req, res, next) {
         fs.writeFileSync(cachedFileName,retString);
         res.setHeader('Content-Type', 'application/json');
         res.end(retString);
-      })
-    })
+      });
+    });
   } else {
     res.sendFile(`${req.params.id}.json`, { root: cacheDir });
   }
 
 });
-
-app.get('/test', function(req, res, next) {
-  const url1 = 'https://www.strava.com/athletes/1630456';
-  request(url1).then( res3 => {
-    const athleteJson=findAthleteJson(res3);
-    let ret;
-    if (athleteJson=='') ret='Not Found!'
-    else {
-    /*
-      ret = JSON.stringify({
-          athleteName: athleteJson.name,
-          atheletUrl: athleteJson.url,
-          atheletImageUrl: athleteJson.image
-        }) */ 
-        ret=athleteJson;
-    }
-    res.end(ret);
-  })
-})
 
 app.get('/events', function(req, res, next) {
   // this endpoint is an indicator for site use.
@@ -136,48 +121,6 @@ app.use(function (req, res, next) {
 })
 module.exports = app;
 
-function findJsonBlock( str, start ) {
-  const startTxt = "<script type='application/ld+json'>";
-  const endTxt = "</script>";
-  let beginning=str.indexOf(startTxt,start) + startTxt.length;
-  let end;
-  let ret;
-
-  if (beginning > -1)
-    end=str.indexOf(endTxt,beginning);
-
-  if (beginning==-1 || end==-1)
-    ret = { found: false }
-
-  ret={
-    found: true,
-    json: str.substr(beginning,end-beginning),
-    newStart: end + endTxt.length
-  }
-
-  return ret;
-}
-
-function findAthleteJson( str) {
-  let jsonBlock;
-  let json
-  let start=0;
-  let stillLooking = true;
-  while (stillLooking)
-  {
-    jsonBlock = findJsonBlock(str, start)
-    if (jsonBlock.found) {
-      start = jsonBlock.newStart;
-      json=JSON.parse(jsonBlock.json)
-      if(json.hasOwnProperty('@type') && json['@type']=='Person'){
-        stillLooking = false;
-      }
-    } else
-      return '';
-  }
-  return json;
-}
-
 function shouldCompress (req, res) {
   if (req.headers['x-no-compression']) {
     // don't compress responses with this request header
@@ -186,4 +129,12 @@ function shouldCompress (req, res) {
 
   // fallback to standard filter function
   return compression.filter(req, res)
+}
+
+function checkResponseStatus(res) {
+  if(res.ok){
+      return res
+  } else {
+      throw new Error(`The HTTP status of the reponse: ${res.status} (${res.statusText})`);
+  }
 }
