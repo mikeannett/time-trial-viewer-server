@@ -35,6 +35,7 @@ const cacheDir=process.env.CACHE_DIR;
 
 app.get('/activity/:id', function(req, res, next) {
   const cachedFileName = path.format( {dir: cacheDir, base: `${req.params.id}.json`});
+  const activityId = req.params.id;
   
   if (!fs.existsSync(cachedFileName)) {
     const url1 = 'https://nene.strava.com/flyby/stream_compare/'+req.params.id+'/'+req.params.id;
@@ -85,7 +86,17 @@ app.get('/activity/:id', function(req, res, next) {
         fs.writeFileSync(cachedFileName,retString);
         res.setHeader('Content-Type', 'application/json');
         res.end(retString);
+      })
+      .catch(err => {
+        console.log( "Get flyby (part two) for " + activityId + " failed" );
+        console.log( err );
+        // rejection
       });
+    })
+    .catch(err => {
+      console.log( "Get flyby (part one) for " + activityId + " failed" );
+      console.log( err );
+      // rejection
     });
   } else {
     res.sendFile(`${req.params.id}.json`, { root: cacheDir });
