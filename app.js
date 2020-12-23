@@ -6,7 +6,8 @@ const logger = require('morgan');
 const fs = require('fs');
 const helmet = require('helmet');
 const fetch = require('node-fetch');
-const path = require( 'path' )
+const path = require( 'path' );
+const topup = require( './topup.js' );
 
 const app = express();
 // enable security headers
@@ -34,11 +35,28 @@ app.use(express.static('static'))
 const cacheDir=process.env.CACHE_DIR;
 
 app.get('/activity/:id', function(req, res, next) {
-  const cachedFileName = path.format( {dir: cacheDir, base: `${req.params.id}.json`});
   const activityId = req.params.id;
+  const cachedFileName = path.format( {dir: cacheDir, base: `${activityId}.json`});
   
   if (!fs.existsSync(cachedFileName)) {
-    const url1 = 'https://nene.strava.com/flyby/stream_compare/'+req.params.id+'/'+req.params.id;
+    const url1 = 'https://nene.strava.com/flyby/stream_compare/'+activityId+'/'+activityId;
+    const url2='https://nene.strava.com/flyby/matches/'+req.params.id;
+    const url3='https://www.strava.com/activities/'+activityId
+    const url2Options = {
+      method: 'GET',
+      headers: {
+        'Origin': 'https://labs.strava.com',
+        'User-Agent': 'curl/7.54.0',
+        'Accept': '*/*'
+      }
+    };
+    const url3Options = {
+      method: 'GET',
+      headers: {
+       'User-Agent': 'curl/7.54.0',
+       'Accept': '*/*'
+      }
+    };
     var stream;
 
     fetch(url1)
@@ -46,55 +64,58 @@ app.get('/activity/:id', function(req, res, next) {
     .then(res1 => res1.json())
     .then( res1 => {
       stream=res1;
+      return fetch(url2, url2Options)
+    })
+    .then(checkResponseStatus)
+    .then(res2 => res2.json())
+    .then( res2Json => {
+      // this API returns {} for athletes with certain privacy settings
+      const athleteId = res2Json.activity && res2Json.activity.athleteId ? res2Json.activity.athleteId : 0
+      
+      if (athleteId!=0)
+      {
+        // merge activity structure
+        // structure: "activity":{"id":9999999999,"athleteId":9999999,"startTime":1592496376,
+        // "elapsedTime":2546.0,"name":"Afternoon Run","distance":7249.0,
+        // "activityType":"Run"}
+        stream.activity = res2Json.activity
 
-      const url2='https://nene.strava.com/flyby/matches/'+req.params.id;
-      const options = {
-        method: 'GET',
-        headers: {
-          'Origin': 'https://labs.strava.com',
-          'User-Agent': 'curl/7.54.0',
-          'Accept': '*/*'
-        }
-      };
-      // console.log(url2);
-      fetch(url2, options)
-      .then(checkResponseStatus)
-      .then(res2 => res2.json())
-      .then( res2Json => {
-        let athleteId;
-        // this API returns {} for athletes with certain privacy settings
-        try {
-          athleteId=res2Json.activity.athleteId;
-        } catch(err) {
-          athleteId='0';
-        }
+        // Lookup this athlete and get firstName
+        // structure: "athletes":{"9999999":{"id":9999999,"firstName":"Pete"},...}
+        stream.activity.firstName=res2Json.athletes[athleteId].firstName;
+        console.log( `${activityId} retrieved flyby with activity` );
+        return stream;
+      }
 
-        if (athleteId!=0)
-        {
-          // merge activity structure
-          // structure: "activity":{"id":9999999999,"athleteId":9999999,"startTime":1592496376,
-          // "elapsedTime":2546.0,"name":"Afternoon Run","distance":7249.0,
-          // "activityType":"Run"}
-          stream.activity = res2Json.activity
+      // Flyby is missing athlete info so... look at the public (non authenticated) Strava page for this activity
+      // and see if we can get some info from there instead.
+      return fetch(url3, url3Options)
+        .then(checkResponseStatus)
+        .then(res => res.text())
+        .then( res => {
+          const activity=topup.getActivity(res);
 
-          // Lookup this athlete and get firstName
-          // structure: "athletes":{"9999999":{"id":9999999,"firstName":"Pete"},...}
-          stream.activity.firstName=res2Json.athletes[athleteId].firstName;
-        }
-
-        const retString=JSON.stringify(stream)
-        fs.writeFileSync(cachedFileName,retString);
-        res.setHeader('Content-Type', 'application/json');
-        res.end(retString);
-      })
-      .catch(err => {
-        console.log( "Get flyby (part two) for " + activityId + " failed" );
-        console.log( err );
-        // rejection
-      });
+          if (typeof activity == 'undefined') {
+              console.log( `${activityId} Strava GET failed to find athlete data` );
+              return;
+          }
+              
+          stream.activity = activity;
+          // const retString=JSON.stringify(activityData);
+          // fs.writeFileSync(file,retString);
+          console.log( `${activityId} Adding activity section ${JSON.stringify(stream.activity)}` );
+          return stream;
+        })
+      // topup.updateUserActivityData( activityId, stream, cachedFileName, res );
+    })
+    .then( finalJson => {
+      const retString=JSON.stringify(finalJson)
+      fs.writeFileSync(cachedFileName,retString);
+      res.setHeader('Content-Type', 'application/json');
+      res.end(retString);
     })
     .catch(err => {
-      console.log( "Get flyby (part one) for " + activityId + " failed" );
+      console.log( "Get flyby for " + activityId + " failed" );
       console.log( err );
       // rejection
     });
